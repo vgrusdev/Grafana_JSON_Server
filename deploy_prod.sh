@@ -3,6 +3,9 @@
 # Load environment variables
 set -a
 source .env
+
+# generate random key for cache key prefix
+CACHE_KEY_PREFIX="${CACHE_KEY_PREFIX:-$(cat /dev/urandom | LC_ALL=C tr -dc '0-9_A-Z_0-9_a-z_0-9' | head -c 8)}"
 set +a
 
 # Generate SSL certificates if they don't exist
@@ -16,6 +19,7 @@ echo "Starting Grafana JSON Datasource with HTTPS and Auth..."
 exec gunicorn \
     --bind 0.0.0.0:5000 \
     --workers 4 \
+    --worker-class sync \
     --timeout 120 \
     --access-logfile - \
     --error-logfile - \

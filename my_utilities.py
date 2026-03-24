@@ -3,6 +3,7 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 import time
 import random
+import string
 import logging
 import os
 import ssl
@@ -13,15 +14,6 @@ from werkzeug.exceptions import HTTPException
 import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('grafana_datasource.log'),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -291,3 +283,73 @@ def generate_ssl_context():
     except Exception as e:
         logger.warning(f"SSL certificate not found: {str(e)}. Using HTTP.")
         return None
+
+def parse_prometheus_param(param_value):
+    """
+    Parse Prometheus parameter that might be string or list
+    Handles: '[value]', '[val1 val2]', 'value', ['value']
+    """
+    if param_value is None:
+        return None
+        
+    # If it's already a list, return it
+    if isinstance(param_value, list):
+        return param_value
+    
+    # If it's a string
+    if isinstance(param_value, str):
+        param_value = param_value.strip()
+        
+        # Check if it's in '[values]' format
+        if param_value.startswith('[') and param_value.endswith(']'):
+            content = param_value[1:-1].strip()
+            
+            # Empty brackets
+            if not content:
+                return []
+            
+            # Check if content looks like space-separated
+            if ' ' in content and ',' not in content:
+                # Split by spaces (handle multiple spaces)
+                import re
+                return re.split(r'\s+', content)
+            else:
+                # Might be JSON-like with commas
+                try:
+                    import json
+                    # Try to parse as JSON
+                    return json.loads(param_value)
+                except:
+                    # Fall back to comma splitting
+                    items = [item.strip().strip('"\'') for item in content.split(',')]
+                    return [item for item in items if item]
+        else:
+            # Single string value
+            return [param_value]
+    
+    # For other types, wrap in list
+    return [param_value] if param_value is not None else []
+
+# Test with Prometheus-like inputs
+#prometheus_tests = [
+#    '[db1 db2]',      # Your specific case
+#    'db1',            # Single value
+#    ['db1', 'db2'],   # Already a list
+#    '["db1","db2"]',  # JSON format
+#    '[db1]',          # Single in brackets
+#    '[]',             # Empty
+#    '[db1, db2]',     # Comma separated in brackets
+#]
+#
+#print("\nPrometheus parameter parsing:")
+#for test in prometheus_tests:
+#    result = parse_prometheus_param(test)
+#    print(f"  Input: {repr(test)}")
+#    print(f"  Output: {result}")
+#    print(f"  Type: {type(result)}")
+#    print()
+
+# Generate alphanumeric key
+def generate_alphanumeric_key(length=32):
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))

@@ -1,0 +1,52 @@
+{
+    "sqls": {
+        "SQL1": {
+            "name": "My_First_SQL",
+            "sql": [
+                "SELECT COUNT(*) FROM USERS"
+            ],
+            "param": []
+        },
+        "SQL2": {
+            "sql": [
+                "SELECT USER_NAME AS USER_NAME,         ",
+                "COUNT(*) AS ACTIVE_SESSIONS,           ",
+                "MIN(START_TIME) AS FIRST_CONNECTION,   ",
+                "MAX(START_TIME) AS LATEST_CONNECTION   ",
+                "FROM M_CONNECTIONS                     ",
+                "WHERE CONNECTION_STATUS = 'RUNNING'    ",
+                "AND USER_NAME NOT IN ('SYSTEM', '_SYS_REPO') ",
+                "GROUP BY USER_NAME                     ",
+                "ORDER BY ACTIVE_SESSIONS DESC          "
+            ]
+        },
+        "SQL3": {
+            "sql": [
+                "SELECT                         ",
+                "HOST,                          ",
+                "PORT,                          ",
+                "CONNECTION_ID,                 ",
+                "TRANSACTION_ID,                ",
+                "START_TIME,                    ",
+                "IDLE_TIME,                     ",
+                "CONNECTION_STATUS,             ",
+                "CLIENT_HOST,                   ",
+                "CLIENT_IP,                     ",
+                "CLIENT_PID,                    ",
+                "USER_NAME,                     ",
+                "CONNECTION_TYPE,               ",
+                "MEMORY_SIZE_PER_CONNECTION,    ",
+                "LAST_ACTION,                   ",
+                "CURRENT_STATEMENT_ID,          ",
+                "CURRENT_OPERATOR_NAME,         ",
+                "FETCHED_RECORD_COUNT,          ",
+                "SENT_MESSAGE_SIZE,             ",
+                "CREATED_BY,                    ",
+                "END_TIME,                      ",
+                "CLIENT_DISTRIBUTION_MODE       ",
+                "FROM M_CONNECTIONS             ",
+                "ORDER BY START_TIME DESC       "
+            ]
+        }
+    }
+}

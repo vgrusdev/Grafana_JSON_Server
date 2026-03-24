@@ -1,0 +1,35 @@
+{
+    "databases": {
+        "primary": {
+            "host": "db1.example.com",
+            "port": 5432,
+            "database": "main_db",
+            "username": "admin",
+            "password": "secret1",
+            "type":"hdb"
+        },
+        "replica": {
+            "host": "db2.example.com", 
+            "port": 5432,
+            "database": "main_db",
+            "username": "admin",
+            "password": "secret2",
+            "type":"hdb"
+        },
+        "analytics": {
+            "host": "db3.example.com",
+            "port": 5432,
+            "database": "analytics_db",
+            "username": "reader",
+            "password": "secret3",
+            "type":"hdb"
+        },
+        "redis": {
+            "host": "localhost",
+            "port": "6379",
+            "db": "",
+            "password": "",
+            "max_connections": 10
+        }
+    }
+}
