@@ -13,8 +13,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import db_config_manager        # Loads DB config file JSON
 import sql_list_manager         # Loads SQL List
 import db_call_sql_redis as db_call_sql              # SQL exec
-from query_ssl_cert import QuerySSLCert
-#import query_ssl_cert as query_ssl_cert
+#from query_ssl_cert import QuerySSLCert
+import query_ssl_cert as query_ssl_cert
 
 # Default log level
 default_level = logging.INFO
@@ -46,7 +46,7 @@ from my_utilities import *
 db_config_manager   = db_config_manager.DatabaseConfigManager()
 sql_list_manager    = sql_list_manager.SQLListManager(db_config_manager)
 db_call_sql         = db_call_sql.DBCallSQL(db_config_manager, sql_list_manager)
-query_ssl_cert      = QuerySSLCert(db_config_manager)
+query_ssl_cert      = query_ssl_cert.QuerySSLCert(db_config_manager)
 
 #from my_utilities import *
 
@@ -346,7 +346,7 @@ def query_ssl():
 
         future_to_conn = {}
         for conn in connections:
-            future = executor.submit(query_ssl_cert.execute_query_json, conn)
+            future = executor.submit(query_ssl_cert.get_ssl_certificate, conn)
             future_to_conn[future] = conn
 
         #all_results = []

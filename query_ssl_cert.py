@@ -26,7 +26,7 @@ class QuerySSLCert:
         #self._access_count      = {}  # Track how often items are accessed
         #self.max_cache_size     = int(os.getenv('DB_CACHE_LENGTH', '30'), base=10)
 
-    def get_ssl_certificate(conn):
+    def get_ssl_certificate(self, conn):
         ''' conn is server connection params string:
             NAME:hostname:port
         '''
