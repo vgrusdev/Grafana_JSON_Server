@@ -211,9 +211,9 @@ def get_fresh_data (
             
     except Exception as e:
         result['error'] = f"Unexpected error: {str(e)}"
-            logger.error(result['error'])
-            result['duration_ms'] = (time.time() - start_time) * 1000
-            return result
+        logger.error(result['error'])
+        result['duration_ms'] = (time.time() - start_time) * 1000
+        return result
         
     finally:
         if sock:
