@@ -13,6 +13,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import db_config_manager        # Loads DB config file JSON
 import sql_list_manager         # Loads SQL List
 import db_call_sql_redis as db_call_sql              # SQL exec
+from query_ssl_cert import QuerySSLCert
+#import query_ssl_cert as query_ssl_cert
 
 # Default log level
 default_level = logging.INFO
@@ -44,6 +46,7 @@ from my_utilities import *
 db_config_manager   = db_config_manager.DatabaseConfigManager()
 sql_list_manager    = sql_list_manager.SQLListManager(db_config_manager)
 db_call_sql         = db_call_sql.DBCallSQL(db_config_manager, sql_list_manager)
+query_ssl_cert      = QuerySSLCert(db_config_manager)
 
 #from my_utilities import *
 
@@ -165,8 +168,6 @@ def query():
         return jsonify({"error": str(e)}), 500
 
 # ----------------------------
-
-
 
 @app.route('/query_json', methods=['POST', 'OPTIONS'])
 @authenticate
@@ -303,6 +304,64 @@ def variables():
 
 # ----------------------------------
 
+@app.route('/query_ssl', methods=['POST', 'OPTIONS'])
+@authenticate
+@rate_limit(max_requests=100, window=60)
+@handle_errors
+def query_ssl():
+    """
+    Handle query requests from json_exporter (https://github.com/prometheus-community/json_exporter/)
+
+    This is request coming from json_exporter:
+
+    {   'connections': 'server.local:443:myserver.local'},    <===== colon separeted connection address, port, servername 
+                                                                                (in case server hosts multiple websites - SNI)
+    }
+    -----------------------
+    Response format to json_exporter:
+    sample_result = [
+        {   column_name1: value1, 
+            column_name2: value2
+        },
+        ...
+    ]
+
+    """
+    try:
+        data = request.get_json()                           # get request from client
+        logger.debug(f"query_ssl - request_data: {data}")
+
+        connections = parse_prometheus_param(data.get('connections', [])) # List of connections names, Normalize to list
+        ogger.debug(f"query_ssl - connections: {connections}")
+        if (not connections):
+            logger.error(f"connections option must be provided")
+            return jsonify({"connections must be provided"}), 500
+    except Exception as e:
+        logger.error(f"Query JSON processing error: {str(e)}")
+        return jsonify({"Input JSON processing error": str(e)}), 500
+
+    all_results = []
+    with ThreadPoolExecutor(max_workers=5) as executor:    
+        # Submit all queries in parallel
+
+        future_to_conn = {}
+        for conn in connections:
+            future = executor.submit(query_ssl_cert.execute_query_json, conn)
+            future_to_conn[future] = conn
+
+        #all_results = []
+        for future in as_completed(future_to_conn):
+            conn = future_to_conn[future]
+            try:
+                result = future.result(timeout=30)  # 30 second timeout
+                if ('results' in result) and (len(result['results']) > 0):
+                    all_results.append(result)
+            except Exception as e:
+                logger.error(f"query_ssl exec error for conn:{conn}. {str(e)}")
+
+    return jsonify(all_results)
+
+# ------------------------------------
 
 if __name__ == '__main__':
     ssl_context = generate_ssl_context()

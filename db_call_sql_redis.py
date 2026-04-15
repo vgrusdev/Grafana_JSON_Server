@@ -233,7 +233,7 @@ class DBCallSQL:
                 exclude_columns=dedup_params['exclude_col'],
                 timestamp_column=dedup_params['timestamp_col']
             )
-            logger.debug(f"Query Name: {sql_name} {len(results_dedup)} rows left after deduplication")
+            logger.debug(f"Query: {sql_name} on {conn_name} {len(results_dedup)} rows left after deduplication")
         else:
             results_dedup = results
 
@@ -291,7 +291,7 @@ class DBCallSQL:
             conn = self._get_db_connection(conn_name)
             cursor = conn.cursor()
     
-            logger.debug(f"Executing_query - Name: {sql_name}, Query: {query}")
+            logger.debug(f"Executing_query_name {sql_name} on {conn_name}, Query: {query}")
             cursor.execute(query, params_tuple or ())
 
             columns = [desc[0] for desc in cursor.description]
@@ -343,13 +343,13 @@ class DBCallSQL:
                 results.append(row_dict)
 
             cursor.close()
-            logger.debug(f"Query Name: {sql_name} results: {i-1} rows returned, exec time(ms): {exec_time}")
+            logger.debug(f"Query: {sql_name} on {conn_name} results: {i-1} rows returned, exec time(ms): {exec_time}")
             self.last_scrape_success = 1
 
             return results
 
         except Exception as e:
-            logger.error(f"Query Name: {sql_name}, Database query failed: {str(e)}")
+            logger.error(f"Query: {sql_name} on {conn_name}, Database query failed: {str(e)}")
             self.last_scrape_success = 0
             return []
         finally:
