@@ -7,6 +7,8 @@ from typing import Optional, Dict, List
 from dataclasses import dataclass, field
 from enum import Enum
 
+import redis_cache_thread_safe as redis_cache
+
 logger = logging.getLogger(__name__)
 
 class QuerySSLCert:
