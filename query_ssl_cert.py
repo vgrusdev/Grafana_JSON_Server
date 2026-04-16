@@ -100,12 +100,12 @@ def get_fresh_data (
         'expiry_date': None,
         'days_left': None,
         'is_expired': None,
+        'certificate_type': None,
         'is_self_signed': False,
+        'is_ca': None,
         'issuer': None,
         'subject': None,
         'common_name': None,
-        'serial_number': None,
-        'signature_algorithm': None,
         'error': None,
         'duration_ms': 0
     }
@@ -154,26 +154,26 @@ def get_fresh_data (
             now = datetime.now(timezone.utc)
             days_left = (expiry_date - now).total_seconds() / 86400
             
-            # Extract subject and issuer
-            subject = cert.subject
-            issuer = cert.issuer
+            # Extract certificate info
+            subject_str = _certificate_name_to_string(cert.subject)
+            issuer_str = _certificate_name_to_string(cert.issuer)
+            common_name = _get_common_name(cert.subject)
             
-            # Check if self-signed (subject == issuer)
-            is_self_signed = subject == issuer
-            
-            # Get common name
-            common_name = None
-            for attribute in subject:
-                if attribute.oid._name == 'commonName':
-                    common_name = attribute.value
-                    break
+            # Analyze certificate type
+            type_analysis = analyze_certificate_safe(der_cert)
 
             result.update({
                 'success': True,
                 'issued_date': not_before.isoformat(),
                 'expiry_date': expiry_date.isoformat(),
-                'days_left': round(days_left, 1),
+                'days_left': round(days_left, 2),
                 'is_expired': days_left < 0,
+                'certificate_type': type_analysis['certificate_type'],
+                'is_self_signed': type_analysis['is_self_signed'],
+                'is_ca': type_analysis['is_ca'],
+                'subject': subject_str,
+                'issuer': issuer_str,
+                'common_name': common_name,
                 'is_self_signed': is_self_signed,
                 'issuer': str(issuer),
                 'subject': str(subject),
@@ -181,7 +181,8 @@ def get_fresh_data (
                 'serial_number': hex(cert.serial_number),
                 'signature_algorithm': cert.signature_algorithm_oid._name,
                 'not_before': not_before.isoformat(),
-                'version': cert.version.value
+                'version': cert.version.value,
+                'serial_number': hex(cert.serial_number)
             })
 
     except socket.timeout:
@@ -201,59 +202,66 @@ def get_fresh_data (
     
     return result
 
+def analyze_certificate_safe(der_cert: bytes) -> Dict[str, any]:
+    """
+    Analyze certificate type with safe datetime handling.
+    """
+    cert = x509.load_der_x509_certificate(der_cert, default_backend())
+    
+    result = {
+        'is_self_signed': False,
+        'is_ca': False,
+        'certificate_type': 'unknown',
+        'reasons': []
+    }
+    
+    # Compare subject and issuer
+    subject = cert.subject
+    issuer = cert.issuer
+    
+    if subject == issuer:
+        result['is_self_signed'] = True
+        result['reasons'].append("Subject matches issuer")
+    
+    # Check Basic Constraints
+    try:
+        basic_constraints = cert.extensions.get_extension_for_oid(
+            ExtensionOID.BASIC_CONSTRAINTS
+        )
+        is_ca = basic_constraints.value.ca
+        result['is_ca'] = is_ca
+        
+        if is_ca:
+            result['reasons'].append("Basic constraints CA:TRUE")
+        else:
+            result['reasons'].append("Basic constraints CA:FALSE")
+    except x509.extensions.ExtensionNotFound:
+        result['reasons'].append("No basic constraints extension")
+    
+    # Determine type
+    if result['is_self_signed'] and result['is_ca']:
+        result['certificate_type'] = 'root_ca_self_signed'
+    elif result['is_self_signed'] and not result['is_ca']:
+        result['certificate_type'] = 'self_signed_end_entity'
+    elif not result['is_self_signed'] and result['is_ca']:
+        result['certificate_type'] = 'intermediate_ca'
+    else:
+        result['certificate_type'] = 'ca_signed_end_entity'
+    
+    return result
 
-def _format_cert_name(name_tuple):
-    """
-    Format certificate name tuple into a readable string.
-    
-    Args:
-        name_tuple: Tuple of certificate name components
-    
-    Returns:
-        Formatted string representation of the certificate name
-    """
-    if not name_tuple:
-        return None
-    
+
+def _certificate_name_to_string(name) -> str:
+    """Convert certificate name to readable string."""
     parts = []
-    for component in name_tuple:
-        if isinstance(component, tuple):
-            for item in component:
-                if isinstance(item, tuple) and len(item) == 2:
-                    parts.append(f"{item[0]}={item[1]}")
-                elif isinstance(item, str):
-                    parts.append(item)
-        elif isinstance(component, str):
-            parts.append(component)
-    
-    return ', '.join(parts) if parts else None
+    for attribute in name:
+        parts.append(f"{attribute.oid._name}={attribute.value}")
+    return ', '.join(parts)
 
-def parse_certificate_name(name_tuple):
-    """
-    Robust parser that handles various nesting levels in certificate names.
-    """
-    if not name_tuple:
-        return {}, "Unknown"
-    
-    result_dict = {}
-    
-    def extract_recursive(item):
-        """Recursively extract key-value pairs"""
-        if isinstance(item, tuple):
-            if len(item) == 2 and isinstance(item[0], str) and isinstance(item[1], str):
-                # Direct key-value pair
-                result_dict[item[0]] = item[1]
-            else:
-                # Recursively process tuple elements
-                for sub_item in item:
-                    extract_recursive(sub_item)
-        elif isinstance(item, list):
-            for sub_item in item:
-                extract_recursive(sub_item)
-    
-    extract_recursive(name_tuple)
-    
-    # Format as string
-    formatted = ', '.join([f"{k}={v}" for k, v in result_dict.items()])
-    
-    return result_dict, formatted
+
+def _get_common_name(name) -> Optional[str]:
+    """Extract Common Name from certificate subject."""
+    for attribute in name:
+        if attribute.oid._name == 'commonName':
+            return attribute.value
+    return None
