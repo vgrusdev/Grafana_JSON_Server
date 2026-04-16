@@ -91,6 +91,7 @@ def get_fresh_data (
         'success': False,
         'hostname': hostname,
         'port': port,
+        'issued_date': None,
         'expiry_date': None,
         'days_left': None,
         'is_expired': None,
@@ -166,7 +167,15 @@ def get_fresh_data (
                     result['duration_ms'] = (time.time() - start_time) * 1000
                     return result
                 
+                not_before = cert_bin.get('notBefore')
+                if not not_before:
+                    result['error'] = f"Certificate missing issued date"
+                    logger.error(result['error'])
+                    result['duration_ms'] = (time.time() - start_time) * 1000
+                    return result
+
                 try:
+                    issued_date = datetime.strptime(not_before, '%b %d %H:%M:%S %Y %Z')
                     expiry_date = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z')
                 except ValueError as e:
                     result['error'] = f"Failed to parse certificate date: {str(e)}"
@@ -174,6 +183,7 @@ def get_fresh_data (
                     result['duration_ms'] = (time.time() - start_time) * 1000
                     return result
                 
+                result['issued_date'] = issued_date
                 result['expiry_date'] = expiry_date
 
                 # Calculate days until expiry
