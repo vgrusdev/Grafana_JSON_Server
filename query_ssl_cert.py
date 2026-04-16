@@ -148,9 +148,9 @@ def get_fresh_data (
             cert = x509.load_der_x509_certificate(cert_bin, default_backend())
             
             # Extract certificate information
-            expiry_date = cert.not_valid_after
-            not_before = cert.not_valid_before
-            now = datetime.now(expiry_date.tzinfo) if expiry_date.tzinfo else datetime.now()
+            expiry_date = cert.not_valid_after_utc
+            not_before = cert.not_valid_before_utc
+            now = datetime.now(datetime.now(timezone.utc)) 
             days_left = (expiry_date - now).total_seconds() / 86400
             
             # Extract subject and issuer
@@ -169,6 +169,7 @@ def get_fresh_data (
 
             result.update({
                 'success': True,
+                'issued_date': not_before.isoformat(),
                 'expiry_date': expiry_date.isoformat(),
                 'days_left': round(days_left, 1),
                 'is_expired': days_left < 0,
