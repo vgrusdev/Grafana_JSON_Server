@@ -173,10 +173,11 @@ def get_fresh_data (
                 # Check if certificate is self-signed
                 issuer = dict(cert_bin.get('issuer', []))
                 subject = dict(cert_bin.get('subject', []))
-                is_self_signed = issuer.get('commonName', [''])[0] == subject.get('commonName', [''])[0]
-                result['is_self_signed'] = is_self_signed
                 logger.debug(f"issuer: {issuer}")
                 logger.debug(f"subject: {subject}")
+                
+                is_self_signed = issuer.get('commonName', [''])[0] == subject.get('commonName', [''])[0]
+                result['is_self_signed'] = is_self_signed
 
                 not_before = cert_bin.get('notBefore')
                 if not_before:
