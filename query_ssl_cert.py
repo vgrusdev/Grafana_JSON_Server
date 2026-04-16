@@ -70,7 +70,8 @@ def get_fresh_data (
     hostname: str,
     port: int = 443,
     timeout: int = 10,
-    check_hostname: bool = True
+    check_hostname: bool = True,
+    allow_self_signed: bool = False
 ) -> Dict:
     """
     Retrieve SSL certificate information - return dictionary with results.
@@ -80,10 +81,11 @@ def get_fresh_data (
         port: The port number (default 443 for HTTPS)
         timeout: Connection timeout in seconds
         check_hostname: Whether to verify the hostname matches the certificate
+        allow_self_signed: If True, accept self-signed certificates for checking
     
     Returns:
         Dictionary with keys: success, hostname, port, expiry_date, 
-        days_left, is_expired, issuer, subject, error, duration_ms
+        days_left, is_expired, issuer, subject, error, duration_ms, is_self_signed
     
     """
     start_time = time.time()
@@ -95,6 +97,7 @@ def get_fresh_data (
         'expiry_date': None,
         'days_left': None,
         'is_expired': None,
+        'is_self_signed': False,
         'issuer': None,
         'subject': None,
         'error': None,
@@ -112,14 +115,20 @@ def get_fresh_data (
         logger.error(result['error'])
         return result
     
-    # Create SSL context
-    context = ssl.create_default_context()
-    if not check_hostname:
-        context.check_hostname = False
-    
     sock = None
     
     try:
+        # Create context based on whether we allow self-signed
+        if allow_self_signed:
+            # Don't verify certificate chain for self-signed
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE  # Accept any certificate
+        else:
+            context = ssl.create_default_context()
+            if not check_hostname:
+                context.check_hostname = False
+
         # Attempt to resolve hostname
         try:
             addr_info = socket.getaddrinfo(hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
@@ -153,7 +162,7 @@ def get_fresh_data (
         # Wrap socket with SSL/TLS
         logger.debug("run context.wrap_socket")
         try:
-            with context.wrap_socket(sock, server_hostname=hostname if check_hostname else None) as ssock:
+            with context.wrap_socket(sock, server_hostname=hostname if check_hostname and not allow_self_signed  else None) as ssock:
                 cert_bin = ssock.getpeercert(binary_form=False)
                 if not cert_bin:
                     result['error'] = f"No certificate received from server"
@@ -161,37 +170,38 @@ def get_fresh_data (
                     result['duration_ms'] = (time.time() - start_time) * 1000
                     return result
 
-                not_after = cert_bin.get('notAfter')
-                if not not_after:
-                    result['error'] = f"Certificate missing expiration date"
-                    logger.error(result['error'])
-                    result['duration_ms'] = (time.time() - start_time) * 1000
-                    return result
-                
+                # Check if certificate is self-signed
+                issuer = dict(cert_bin.get('issuer', []))
+                subject = dict(cert_bin.get('subject', []))
+                is_self_signed = issuer.get('commonName', [''])[0] == subject.get('commonName', [''])[0]
+                result['is_self_signed'] = is_self_signed
+                logger.debug(f"issuer: {issuer}")
+                logger.debug(f"subject: {subject}")
+
                 not_before = cert_bin.get('notBefore')
-                if not not_before:
-                    result['error'] = f"Certificate missing issued date"
-                    logger.error(result['error'])
-                    result['duration_ms'] = (time.time() - start_time) * 1000
-                    return result
+                if not_before:
+                    try:
+                        issued_date = datetime.strptime(not_before, '%b %d %H:%M:%S %Y %Z')
+                        result['issued_date'] = issued_date
+                    except ValueError as e:
+                        logger.warning(f"Failed to parse certificate issued date: {str(e)}")
+                else:
+                    logger.warning("Certificate missing issue date")
 
-                try:
-                    issued_date = datetime.strptime(not_before, '%b %d %H:%M:%S %Y %Z')
-                    expiry_date = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z')
-                except ValueError as e:
-                    result['error'] = f"Failed to parse certificate date: {str(e)}"
-                    logger.error(result['error'])
-                    result['duration_ms'] = (time.time() - start_time) * 1000
-                    return result
-                
-                result['issued_date'] = issued_date
-                result['expiry_date'] = expiry_date
-
-                # Calculate days until expiry
-                now = datetime.now()
-                days_until = (expiry_date - now).total_seconds() / 86400
-                result['days_left'] = round(days_until, 2)
-                result['is_expired'] = days_until < 0
+                not_after = cert_bin.get('notAfter')
+                if not_after:
+                    try:
+                        expiry_date = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z')
+                        result['expiry_date'] = expiry_date
+                        # Calculate days until expiry
+                        now = datetime.now()
+                        days_until = (expiry_date - now).total_seconds() / 86400
+                        result['days_left'] = round(days_until, 2)
+                        result['is_expired'] = days_until < 0
+                    except ValueError as e:
+                        logger.warning(f"Failed to parse certificate expire date: {str(e)}")
+                else:
+                    logger.error("Certificate missing expiration date")
                 
                 # Extract issuer and subject
                 issuer = cert_bin.get('issuer', [])
