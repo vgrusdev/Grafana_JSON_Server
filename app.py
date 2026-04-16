@@ -332,7 +332,7 @@ def query_ssl():
         logger.debug(f"query_ssl - request_data: {data}")
 
         connections = parse_prometheus_param(data.get('connections', [])) # List of connections names, Normalize to list
-        ogger.debug(f"query_ssl - connections: {connections}")
+        logger.debug(f"query_ssl - connections: {connections}")
         if (not connections):
             logger.error(f"connections option must be provided")
             return jsonify({"connections must be provided"}), 500
