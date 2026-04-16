@@ -64,7 +64,7 @@ class QuerySSLCert:
             return {}
 
         results_new['name'] = conn_name
-        logger.debug(f"{conn}: success, duration {result['elapsed_ms']}ms")
+        logger.debug(f"{conn}: success, duration {results_new['elapsed_ms']}ms")
         return results_new
 
 #
