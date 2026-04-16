@@ -64,7 +64,7 @@ class QuerySSLCert:
             return {}
 
         results_new['name'] = conn_name
-        logger.debug(f"{conn}: success, duration {results_new['elapsed_ms']}ms")
+        #logger.debug(f"{conn}: success, duration {results_new['elapsed_ms']}ms")
         return results_new
 
 #
@@ -179,8 +179,7 @@ def get_fresh_data (
                 'signature_algorithm': cert.signature_algorithm_oid._name,
                 'version': cert.version.value
             })
-
-            logger.debug(f"{hostname}:{port} type: {type_analysis['certificate_type']}, expire: {expiry_date.isoformat()}")
+            logger.debug(f"{hostname}:{port} type: {type_analysis['certificate_type']}, expire: {expiry_date.isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
 
     except socket.timeout:
         result['error'] = f"Connection timeout after {timeout}s"
