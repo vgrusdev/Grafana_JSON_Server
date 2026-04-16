@@ -102,10 +102,8 @@ def get_fresh_data (
         'is_expired': None,
         'certificate_type': None,
         'is_self_signed': False,
-        'is_ca': None,
         'issuer': None,
         'subject': None,
-        'common_name': None,
         'error': None,
         'duration_ms': 0
     }
@@ -157,7 +155,6 @@ def get_fresh_data (
             # Extract certificate info
             subject_str = x509.Name(cert.subject).rfc4514_string()
             issuer_str = x509.Name(cert.issuer).rfc4514_string()
-            common_name = _get_common_name(cert.subject)
 
             name = x509.Name(cert.subject)
             logger.debug(f"subject: {name.rfc4514_string()}")
@@ -175,14 +172,10 @@ def get_fresh_data (
                 'is_expired': days_left < 0,
                 'certificate_type': type_analysis['certificate_type'],
                 'is_self_signed': type_analysis['is_self_signed'],
-                'is_ca': type_analysis['is_ca'],
                 'subject': subject_str,
                 'issuer': issuer_str,
-                'common_name': common_name,
-                'serial_number': hex(cert.serial_number),
                 'signature_algorithm': cert.signature_algorithm_oid._name,
-                'version': cert.version.value,
-                'serial_number': hex(cert.serial_number)
+                'version': cert.version.value
             })
 
     except socket.timeout:
@@ -257,10 +250,3 @@ def _certificate_name_to_string(name) -> str:
     for attribute in name:
         parts.append(f"{attribute.oid._name}={attribute.value}")
     return ', '.join(parts)
-
-def _get_common_name(name) -> Optional[str]:
-    """Extract Common Name from certificate subject."""
-    for attribute in name:
-        if attribute.oid._name == 'commonName':
-            return attribute.value
-    return None
