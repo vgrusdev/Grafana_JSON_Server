@@ -64,6 +64,7 @@ class QuerySSLCert:
             return {}
 
         results_new['name'] = conn_name
+        logger.debug(f"{conn}: success, duration {result['elapsed_ms']}ms")
         return results_new
 
 #
@@ -134,7 +135,7 @@ def get_fresh_data (
         sock.connect((hostname, port))
         
         # Wrap socket with SSL/TLS
-        logger.debug("run context.wrap_socket")
+
         with context.wrap_socket(sock, server_hostname=hostname) as ssock:
             # Get certificate in DER format (binary)
             cert_bin = ssock.getpeercert(binary_form=True)
@@ -174,6 +175,8 @@ def get_fresh_data (
                 'version': cert.version.value
             })
 
+            logger.debug(f"{hostname}:{port} type: {type_analysis['certificate_type']}, expire: {expiry_date.isoformat()}")
+
     except socket.timeout:
         result['error'] = f"Connection timeout after {timeout}s"
         logger.error(result['error'])
@@ -187,7 +190,6 @@ def get_fresh_data (
         if sock:
             sock.close()
         result['elapsed_ms'] = round((time.time() - start_time) * 1000, 2)
-        logger.debug(f"Success, duration {result['elapsed_ms']}ms")
     
     return result
 
