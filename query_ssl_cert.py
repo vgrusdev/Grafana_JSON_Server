@@ -178,7 +178,8 @@ def get_fresh_data (
 
                 # Calculate days until expiry
                 now = datetime.now()
-                result['days_left'] = round((expiry_date - now).total_seconds() / 86400, 2)
+                days_until = (expiry_date - now).total_seconds() / 86400
+                result['days_left'] = round(days_until, 2)
                 result['is_expired'] = days_until < 0
                 
                 # Extract issuer and subject
