@@ -159,8 +159,8 @@ def get_fresh_data (
             issuer_str = _certificate_name_to_string(cert.issuer)
             common_name = _get_common_name(cert.subject)
 
-            subject_dict = {'subject_' + attribute.oid._name : attribute.value for attribute in cert.subject}
-            issuer_dict  = {'subject_' + attribute.oid._name : attribute.value for attribute in cert.issuer}
+            subject_dict = {'subject_' + attribute.name : attribute.value for attribute in cert.subject}
+            issuer_dict  = {'issuer_' + attribute.oid._name : attribute.value for attribute in cert.issuer}
 
             logger.debug(f"subject_dict: {subject_dict}")
             logger.debug(f"issuer_dict: {issuer_dict}")
