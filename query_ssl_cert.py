@@ -155,8 +155,8 @@ def get_fresh_data (
             days_left = (expiry_date - now).total_seconds() / 86400
             
             # Extract certificate info
-            subject_str = _certificate_name_to_string(cert.subject)
-            issuer_str = _certificate_name_to_string(cert.issuer)
+            subject_str = x509.Name(cert.subject).rfc4514_string()
+            issuer_str = x509.Name(cert.issuer).rfc4514_string()
             common_name = _get_common_name(cert.subject)
 
             name = x509.Name(cert.subject)
@@ -164,12 +164,6 @@ def get_fresh_data (
             name = x509.Name(cert.issuer)
             logger.debug(f"issuer: {name.rfc4514_string()}")
 
-            subject_dict = {'subject_' + attribute.oid._name : attribute.value for attribute in cert.subject}
-            issuer_dict  = {'issuer_' + attribute.oid._name : attribute.value for attribute in cert.issuer}
-
-            logger.debug(f"subject_dict: {subject_dict}")
-            logger.debug(f"issuer_dict: {issuer_dict}")
-            
             # Analyze certificate type
             type_analysis = analyze_certificate_safe(cert_bin)
 
@@ -190,8 +184,6 @@ def get_fresh_data (
                 'version': cert.version.value,
                 'serial_number': hex(cert.serial_number)
             })
-            result.update(subject_dict)
-            result.update(issuer_dict)
 
     except socket.timeout:
         result['error'] = f"Connection timeout after {timeout}s"
