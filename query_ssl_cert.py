@@ -58,7 +58,7 @@ class QuerySSLCert:
             lambda: get_fresh_data(hostname, port=port), ttl = 30)
 
         if not results_new['success']:
-            #logger.error(f"❌ Error: {results_new['error']}")
+            logger.debug(f"❌ Error: {results_new['error']}")
             return {}
 
         results_new['name'] = conn_name

@@ -83,7 +83,7 @@ class RedisCache:
                 return self._wait_for_cache(cache_key, lock_key, query_func)
                 
         except Exception as e:
-            logger.error(f"Cache lock error for {cache_key}: {e}")
+            logger.warning(f"Cache lock error for {cache_key}: {e}")
             # Fallback: compute without caching
             return query_func()
 

@@ -354,8 +354,8 @@ def query_ssl():
             conn = future_to_conn[future]
             try:
                 result = future.result(timeout=30)  # 30 second timeout
-                if ('results' in result) and (len(result['results']) > 0):
-                    all_results.append(result)
+                #if ('results' in result) and (len(result['results']) > 0):
+                all_results.append(result)
             except Exception as e:
                 logger.error(f"query_ssl exec error for conn:{conn}. {str(e)}")
 
