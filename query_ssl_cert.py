@@ -161,6 +161,9 @@ def get_fresh_data (
 
             subject_dict = {'subject_' + attribute.oid._name : attribute.value for attribute in cert.subject}
             issuer_dict  = {'subject_' + attribute.oid._name : attribute.value for attribute in cert.issuer}
+
+            logger.debug(f"subject_dict: {subject_dict}")
+            logger.debug(f"issuer_dict: {issuer_dict}")
             
             # Analyze certificate type
             type_analysis = analyze_certificate_safe(cert_bin)
