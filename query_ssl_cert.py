@@ -158,6 +158,9 @@ def get_fresh_data (
             subject_str = _certificate_name_to_string(cert.subject)
             issuer_str = _certificate_name_to_string(cert.issuer)
             common_name = _get_common_name(cert.subject)
+
+            subject_dict = {'subject_' + attribute.oid._name : attribute.value for attribute in cert.subject}
+            issuer_dict  = {'subject_' + attribute.oid._name : attribute.value for attribute in cert.issuer}
             
             # Analyze certificate type
             type_analysis = analyze_certificate_safe(cert_bin)
@@ -179,6 +182,8 @@ def get_fresh_data (
                 'version': cert.version.value,
                 'serial_number': hex(cert.serial_number)
             })
+            result.update(subject_dict)
+            result.update(issuer_dict)
 
     except socket.timeout:
         result['error'] = f"Connection timeout after {timeout}s"
@@ -252,7 +257,6 @@ def _certificate_name_to_string(name) -> str:
     for attribute in name:
         parts.append(f"{attribute.oid._name}={attribute.value}")
     return ', '.join(parts)
-
 
 def _get_common_name(name) -> Optional[str]:
     """Extract Common Name from certificate subject."""
