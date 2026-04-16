@@ -6,8 +6,10 @@ from datetime import datetime
 import time
 
 from typing import Optional, Dict, List
-from dataclasses import dataclass, field
-from enum import Enum
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+import base64
 
 import redis_cache_thread_safe as redis_cache
 
@@ -69,12 +71,12 @@ class QuerySSLCert:
 def get_fresh_data (
     hostname: str,
     port: int = 443,
-    timeout: int = 10,
-    check_hostname: bool = True,
-    allow_self_signed: bool = True
+    timeout: int = 10
 ) -> Dict:
     """
     Retrieve SSL certificate information - return dictionary with results.
+    Check certificate using DER binary format - works even with CERT_NONE.
+    This is the most reliable method for self-signed certificates.
     
     Args:
         hostname: The server hostname or IP address
@@ -100,6 +102,9 @@ def get_fresh_data (
         'is_self_signed': False,
         'issuer': None,
         'subject': None,
+        'common_name': None,
+        'serial_number': None,
+        'signature_algorithm': None,
         'error': None,
         'duration_ms': 0
     }
@@ -118,141 +123,81 @@ def get_fresh_data (
     sock = None
     
     try:
-        # Create context based on whether we allow self-signed
-        if allow_self_signed:
-            # Don't verify certificate chain for self-signed
-            context = ssl.create_default_context()
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE  # Accept any certificate
-        else:
-            context = ssl.create_default_context()
-            if not check_hostname:
-                context.check_hostname = False
+        # Create context with CERT_NONE (this works and gives us DER)
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE  # Accept any certificate
 
-        # Attempt to resolve hostname
-        try:
-            addr_info = socket.getaddrinfo(hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
-            if not addr_info:
-                raise socket.gaierror(f"Could not resolve hostname: {hostname}")
-        except socket.gaierror as e:
-            result['error'] = f"DNS resolution failed for {hostname}: {str(e)}"
-            logger.error(result['error'])
-            result['duration_ms'] = (time.time() - start_time) * 1000
-            return result
-        
-        # Create socket and set timeout
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         
-        # Attempt to connect
-        try:
-            sock.connect((hostname, port))
-        except socket.timeout:
-            result['error'] = f"Connection timeout after {timeout} seconds to {hostname}:{port}"
-            logger.error(result['error'])
-            result['duration_ms'] = (time.time() - start_time) * 1000
-            return result
-
-        except socket.error as e:
-            result['error'] = f"Socket connection error: {str(e)}"
-            logger.error(result['error'])
-            result['duration_ms'] = (time.time() - start_time) * 1000
-            return result
+        sock.connect((hostname, port))
         
         # Wrap socket with SSL/TLS
         logger.debug("run context.wrap_socket")
-        try:
-            #with context.wrap_socket(sock, server_hostname=hostname if (check_hostname and not allow_self_signed)  else None) as ssock:
-            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                cert_bin = ssock.getpeercert(binary_form=False)
-                if not cert_bin:
-                    result['error'] = f"No certificate received from server"
-                    logger.error(result['error'])
-                    result['duration_ms'] = (time.time() - start_time) * 1000
-                    return result
-
-                logger.debug("check self-signed")
-                logger.debug(f"get issuer {cert_bin.get('issuer')}")
-                logger.debug(f"get subject {cert_bin.get('subject')}")
-
-                # Check if certificate is self-signed
-                issuer, _ = parse_certificate_name(cert_bin.get('issuer', []))
-                subject, _ = parse_certificate_name(cert_bin.get('subject', []))
-                logger.debug(f"issuer: {issuer}")
-                logger.debug(f"subject: {subject}")
-
-                is_self_signed = issuer.get('commonName', [''])[0] == subject.get('commonName', [''])[0]
-                result['is_self_signed'] = is_self_signed
-
-                not_before = cert_bin.get('notBefore')
-                if not_before:
-                    try:
-                        issued_date = datetime.strptime(not_before, '%b %d %H:%M:%S %Y %Z')
-                        result['issued_date'] = issued_date
-                    except ValueError as e:
-                        logger.warning(f"Failed to parse certificate issued date: {str(e)}")
-                else:
-                    logger.warning("Certificate missing issue date")
-
-                not_after = cert_bin.get('notAfter')
-                if not_after:
-                    try:
-                        expiry_date = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z')
-                        result['expiry_date'] = expiry_date
-                        # Calculate days until expiry
-                        now = datetime.now()
-                        days_until = (expiry_date - now).total_seconds() / 86400
-                        result['days_left'] = round(days_until, 2)
-                        result['is_expired'] = days_until < 0
-                    except ValueError as e:
-                        logger.warning(f"Failed to parse certificate expire date: {str(e)}")
-                else:
-                    logger.error("Certificate missing expiration date")
-                
-                # Extract issuer and subject
-                issuer = cert_bin.get('issuer', [])
-                subject = cert_bin.get('subject', [])
-                result['issuer']  = _format_cert_name(issuer) if issuer else None
-                result['subject'] = _format_cert_name(subject) if subject else None
-                
-                # Check hostname match
-                if check_hostname:
-                    logger.debug("checking hostname match")
-                    try:
-                        ssl.match_hostname(cert_bin, hostname)
-                    except ssl.CertificateError as e:
-                        result['error'] = f"Hostname mismatch: {str(e)}"
-                        logger.error(result['error'])
-                        result['duration_ms'] = (time.time() - start_time) * 1000
-                        return result
-
-                result['success'] = True
+        with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+            # Get certificate in DER format (binary)
+            cert_bin = ssock.getpeercert(binary_form=True)
+            if not cert_bin:
+                result['error'] = f"No certificate received from server"
+                logger.error(result['error'])
                 result['duration_ms'] = (time.time() - start_time) * 1000
-                logger.debug(f"Success return {result}")
                 return result
 
-        except ssl.SSLCertVerificationError as e:
-            result['error'] = f"SSL certificate verification failed: {str(e)}"
-            logger.error(result['error'])
-            result['duration_ms'] = (time.time() - start_time) * 1000
-            logger.debug(f"result is: {result}")
-            return result
-
-        except ssl.SSLError as e:
-            result['error'] = f"SSL handshake failed: {str(e)}"
-            logger.error(result['error'])
-            result['duration_ms'] = (time.time() - start_time) * 1000
-            return result
+            # Parse DER certificate using cryptography library
+            cert = x509.load_der_x509_certificate(cert_bin, default_backend())
             
-    except Exception as e:
-        result['error'] = f"Unexpected error: {str(e)}"
+            # Extract certificate information
+            expiry_date = cert.not_valid_after
+            not_before = cert.not_valid_before
+            now = datetime.now(expiry_date.tzinfo) if expiry_date.tzinfo else datetime.now()
+            days_left = (expiry_date - now).total_seconds() / 86400
+            
+            # Extract subject and issuer
+            subject = cert.subject
+            issuer = cert.issuer
+            
+            # Check if self-signed (subject == issuer)
+            is_self_signed = subject == issuer
+            
+            # Get common name
+            common_name = None
+            for attribute in subject:
+                if attribute.oid._name == 'commonName':
+                    common_name = attribute.value
+                    break
+
+            result.update({
+                'success': True,
+                'expiry_date': expiry_date.isoformat(),
+                'days_left': round(days_left, 1),
+                'is_expired': days_left < 0,
+                'is_self_signed': is_self_signed,
+                'issuer': str(issuer),
+                'subject': str(subject),
+                'common_name': common_name,
+                'serial_number': hex(cert.serial_number),
+                'signature_algorithm': cert.signature_algorithm_oid._name,
+                'not_before': not_before.isoformat(),
+                'version': cert.version.value
+            })
+
+    except socket.timeout:
+        result['error'] = f"Connection timeout after {timeout}s"
         logger.error(result['error'])
-        result['duration_ms'] = (time.time() - start_time) * 1000
-        return result
-        
+    except socket.gaierror as e:
+        result['error'] = f"DNS resolution failed: {str(e)}"
+        logger.error(result['error'])
+    except Exception as e:
+        result['error'] = f"Error processing certificate: {str(e)}"
+        logger.error(result['error'])
     finally:
         if sock:
             sock.close()
+        result['duration_ms'] = round((time.time() - start_time) * 1000, 2)
+        logger.debug("Success, duration {result['duration_ms']}ms")
+    
+    return result
 
 
 def _format_cert_name(name_tuple):
