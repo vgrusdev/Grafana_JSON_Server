@@ -71,7 +71,7 @@ def get_fresh_data (
     port: int = 443,
     timeout: int = 10,
     check_hostname: bool = True,
-    allow_self_signed: bool = False
+    allow_self_signed: bool = True
 ) -> Dict:
     """
     Retrieve SSL certificate information - return dictionary with results.
@@ -162,7 +162,7 @@ def get_fresh_data (
         # Wrap socket with SSL/TLS
         logger.debug("run context.wrap_socket")
         try:
-            with context.wrap_socket(sock, server_hostname=hostname if check_hostname and not allow_self_signed  else None) as ssock:
+            with context.wrap_socket(sock, server_hostname=hostname if (check_hostname and not allow_self_signed)  else None) as ssock:
                 cert_bin = ssock.getpeercert(binary_form=False)
                 if not cert_bin:
                     result['error'] = f"No certificate received from server"
@@ -170,12 +170,16 @@ def get_fresh_data (
                     result['duration_ms'] = (time.time() - start_time) * 1000
                     return result
 
+                logger.debug("check self-signed")
+                logger.debug("get issuer {cert_bin.get('issuer')}")
+                logger.debug("get subject {cert_bin.get('subject')}")
+                
                 # Check if certificate is self-signed
                 issuer = dict(cert_bin.get('issuer', []))
                 subject = dict(cert_bin.get('subject', []))
                 logger.debug(f"issuer: {issuer}")
                 logger.debug(f"subject: {subject}")
-                
+
                 is_self_signed = issuer.get('commonName', [''])[0] == subject.get('commonName', [''])[0]
                 result['is_self_signed'] = is_self_signed
 
