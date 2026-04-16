@@ -37,7 +37,6 @@ class QuerySSLCert:
         ''' conn is server connection params string:
             NAME:hostname:port
         '''
-
         logger.debug(f"execute_query_json - Conn: {conn}")
 
         conn_split = conn.split(sep=":", maxsplit=3)
@@ -101,12 +100,15 @@ def get_fresh_data (
         'days_left': None,
         'is_expired': None,
         'certificate_type': None,
-        'is_self_signed': False,
+        'is_self_signed': None,
         'issuer': None,
         'subject': None,
+        'signature_algorithm': None,
+        'version': None,
         'error': None,
-        'duration_ms': 0
+        'elapsed_ms': 0
     }
+
     # Validate port number
     if not isinstance(port, int) or port < 1 or port > 65535:
         result['error'] = f"Invalid port number: {port}"
@@ -120,7 +122,6 @@ def get_fresh_data (
         return result
     
     sock = None
-    
     try:
         # Create context with CERT_NONE (this works and gives us DER)
         context = ssl.create_default_context()
@@ -140,7 +141,7 @@ def get_fresh_data (
             if not cert_bin:
                 result['error'] = f"No certificate received from server"
                 logger.error(result['error'])
-                result['duration_ms'] = (time.time() - start_time) * 1000
+                result['elapsed_ms'] = (time.time() - start_time) * 1000
                 return result
 
             # Parse DER certificate using cryptography library
@@ -155,11 +156,6 @@ def get_fresh_data (
             # Extract certificate info
             subject_str = x509.Name(cert.subject).rfc4514_string()
             issuer_str = x509.Name(cert.issuer).rfc4514_string()
-
-            name = x509.Name(cert.subject)
-            logger.debug(f"subject: {name.rfc4514_string()}")
-            name = x509.Name(cert.issuer)
-            logger.debug(f"issuer: {name.rfc4514_string()}")
 
             # Analyze certificate type
             type_analysis = analyze_certificate_safe(cert_bin)
@@ -190,8 +186,8 @@ def get_fresh_data (
     finally:
         if sock:
             sock.close()
-        result['duration_ms'] = round((time.time() - start_time) * 1000, 2)
-        logger.debug(f"Success, duration {result['duration_ms']}ms")
+        result['elapsed_ms'] = round((time.time() - start_time) * 1000, 2)
+        logger.debug(f"Success, duration {result['elapsed_ms']}ms")
     
     return result
 

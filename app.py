@@ -332,12 +332,11 @@ def query_ssl():
         logger.debug(f"query_ssl - request_data: {data}")
 
         connections = parse_prometheus_param(data.get('connections', [])) # List of connections names, Normalize to list
-        logger.debug(f"query_ssl - connections: {connections}")
         if (not connections):
             logger.error(f"connections option must be provided")
             return jsonify({"connections must be provided"}), 500
     except Exception as e:
-        logger.error(f"Query JSON processing error: {str(e)}")
+        logger.error(f"JSON processing error: {str(e)}")
         return jsonify({"Input JSON processing error": str(e)}), 500
 
     all_results = []
@@ -355,7 +354,8 @@ def query_ssl():
             try:
                 result = future.result(timeout=30)  # 30 second timeout
                 #if ('results' in result) and (len(result['results']) > 0):
-                all_results.append(result)
+                if result:
+                    all_results.append(result)
             except Exception as e:
                 logger.error(f"query_ssl exec error for conn:{conn}. {str(e)}")
 
