@@ -174,13 +174,8 @@ def get_fresh_data (
                 'subject': subject_str,
                 'issuer': issuer_str,
                 'common_name': common_name,
-                'is_self_signed': is_self_signed,
-                'issuer': str(issuer),
-                'subject': str(subject),
-                'common_name': common_name,
                 'serial_number': hex(cert.serial_number),
                 'signature_algorithm': cert.signature_algorithm_oid._name,
-                'not_before': not_before.isoformat(),
                 'version': cert.version.value,
                 'serial_number': hex(cert.serial_number)
             })
