@@ -99,6 +99,7 @@ def get_fresh_data (
         'issued_date': None,
         'expiry_date': None,
         'days_left': None,
+        'ms_left': None,
         'is_expired': None,
         'certificate_type': None,
         'is_self_signed': None,
@@ -153,6 +154,7 @@ def get_fresh_data (
             not_before = cert.not_valid_before_utc
             now = datetime.now(timezone.utc)
             days_left = (expiry_date - now).total_seconds() / 86400
+            ms_left = (expiry_date - now).total_seconds() * 1000
             
             # Extract certificate info
             subject_str = x509.Name(cert.subject).rfc4514_string()
@@ -163,9 +165,12 @@ def get_fresh_data (
 
             result.update({
                 'success': True,
-                'issued_date': not_before.isoformat(),
-                'expiry_date': expiry_date.isoformat(),
+                #'issued_date': not_before.isoformat(),
+                #'expiry_date': expiry_date.isoformat(),
+                'issued_date': not_before.timestamp() * 1000,
+                'expiry_date': expiry_date.timestamp() * 1000,
                 'days_left': round(days_left, 2),
+                'ms_left': ms_left,
                 'is_expired': days_left < 0,
                 'certificate_type': type_analysis['certificate_type'],
                 'is_self_signed': type_analysis['is_self_signed'],
