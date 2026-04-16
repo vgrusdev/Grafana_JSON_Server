@@ -2,7 +2,7 @@ import ssl
 import socket
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 
 from typing import Optional, Dict, List
