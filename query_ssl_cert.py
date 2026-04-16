@@ -160,7 +160,7 @@ def get_fresh_data (
             common_name = _get_common_name(cert.subject)
             
             # Analyze certificate type
-            type_analysis = analyze_certificate_safe(der_cert)
+            type_analysis = analyze_certificate_safe(cert_bin)
 
             result.update({
                 'success': True,
