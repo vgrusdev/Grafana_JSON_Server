@@ -175,8 +175,8 @@ def get_fresh_data (
                 logger.debug(f"get subject {cert_bin.get('subject')}")
 
                 # Check if certificate is self-signed
-                issuer = parse_certificate_name(cert_bin.get('issuer', []))
-                subject = parse_certificate_name(cert_bin.get('subject', []))
+                issuer, _ = parse_certificate_name(cert_bin.get('issuer', []))
+                subject, _ = parse_certificate_name(cert_bin.get('subject', []))
                 logger.debug(f"issuer: {issuer}")
                 logger.debug(f"subject: {subject}")
 
