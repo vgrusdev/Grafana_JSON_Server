@@ -162,7 +162,8 @@ def get_fresh_data (
         # Wrap socket with SSL/TLS
         logger.debug("run context.wrap_socket")
         try:
-            with context.wrap_socket(sock, server_hostname=hostname if (check_hostname and not allow_self_signed)  else None) as ssock:
+            #with context.wrap_socket(sock, server_hostname=hostname if (check_hostname and not allow_self_signed)  else None) as ssock:
+            with context.wrap_socket(sock, server_hostname=hostname if not allow_self_signed  else None) as ssock:
                 cert_bin = ssock.getpeercert(binary_form=False)
                 if not cert_bin:
                     result['error'] = f"No certificate received from server"
