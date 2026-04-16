@@ -5,11 +5,12 @@ import logging
 from datetime import datetime, timezone
 import time
 
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
-import base64
+from cryptography.x509.oid import ExtensionOID
+#from cryptography.hazmat.primitives import hashes
+#import base64
 
 import redis_cache_thread_safe as redis_cache
 
@@ -150,7 +151,7 @@ def get_fresh_data (
             # Extract certificate information
             expiry_date = cert.not_valid_after_utc
             not_before = cert.not_valid_before_utc
-            now = datetime.now(datetime.now(timezone.utc)) 
+            now = datetime.now(timezone.utc)
             days_left = (expiry_date - now).total_seconds() / 86400
             
             # Extract subject and issuer
