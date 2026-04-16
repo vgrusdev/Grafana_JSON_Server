@@ -171,8 +171,8 @@ def get_fresh_data (
                     return result
 
                 logger.debug("check self-signed")
-                logger.debug("get issuer {cert_bin.get('issuer')}")
-                logger.debug("get subject {cert_bin.get('subject')}")
+                logger.debug(f"get issuer {cert_bin.get('issuer')}")
+                logger.debug(f"get subject {cert_bin.get('subject')}")
 
                 # Check if certificate is self-signed
                 issuer = dict(cert_bin.get('issuer', []))
