@@ -71,7 +71,7 @@ def get_fresh_data (
     port: int = 443,
     timeout: int = 10,
     check_hostname: bool = True,
-    allow_self_signed: bool = True
+    allow_self_signed: bool = False
 ) -> Dict:
     """
     Retrieve SSL certificate information - return dictionary with results.
@@ -173,7 +173,7 @@ def get_fresh_data (
                 logger.debug("check self-signed")
                 logger.debug("get issuer {cert_bin.get('issuer')}")
                 logger.debug("get subject {cert_bin.get('subject')}")
-                
+
                 # Check if certificate is self-signed
                 issuer = dict(cert_bin.get('issuer', []))
                 subject = dict(cert_bin.get('subject', []))
