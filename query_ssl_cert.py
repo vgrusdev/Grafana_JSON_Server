@@ -71,7 +71,7 @@ def get_fresh_data (
     port: int = 443,
     timeout: int = 10,
     check_hostname: bool = True,
-    allow_self_signed: bool = False
+    allow_self_signed: bool = True
 ) -> Dict:
     """
     Retrieve SSL certificate information - return dictionary with results.
