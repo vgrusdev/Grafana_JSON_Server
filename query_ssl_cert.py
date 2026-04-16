@@ -170,7 +170,7 @@ def get_fresh_data (
                 'issued_date': not_before.timestamp() * 1000,
                 'expiry_date': expiry_date.timestamp() * 1000,
                 'days_left': round(days_left, 2),
-                'ms_left': ms_left,
+                'ms_left': round(ms_left, 0),
                 'is_expired': days_left < 0,
                 'certificate_type': type_analysis['certificate_type'],
                 'is_self_signed': type_analysis['is_self_signed'],
