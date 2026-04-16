@@ -151,6 +151,7 @@ def get_fresh_data (
             return result
         
         # Wrap socket with SSL/TLS
+        logger.debug("run context.wrap_socket")
         try:
             with context.wrap_socket(sock, server_hostname=hostname if check_hostname else None) as ssock:
                 cert_bin = ssock.getpeercert(binary_form=False)
@@ -200,6 +201,7 @@ def get_fresh_data (
                 
                 # Check hostname match
                 if check_hostname:
+                    logger.debug("checking hostname match")
                     try:
                         ssl.match_hostname(cert_bin, hostname)
                     except ssl.CertificateError as e:
@@ -217,6 +219,7 @@ def get_fresh_data (
             result['error'] = f"SSL certificate verification failed: {str(e)}"
             logger.error(result['error'])
             result['duration_ms'] = (time.time() - start_time) * 1000
+            logger.debug(f"result is: {result}")
             return result
 
         except ssl.SSLError as e:
