@@ -200,6 +200,7 @@ def get_fresh_data (
 
                 result['success'] = True
                 result['duration_ms'] = (time.time() - start_time) * 1000
+                logger.debug(f"Success return {result}")
                 return result
 
         except ssl.SSLCertVerificationError as e:
