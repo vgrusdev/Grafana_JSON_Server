@@ -195,7 +195,7 @@ def get_fresh_data (
         if sock:
             sock.close()
         result['duration_ms'] = round((time.time() - start_time) * 1000, 2)
-        logger.debug("Success, duration {result['duration_ms']}ms")
+        logger.debug(f"Success, duration {result['duration_ms']}ms")
     
     return result
 
