@@ -175,8 +175,8 @@ def get_fresh_data (
                 logger.debug(f"get subject {cert_bin.get('subject')}")
 
                 # Check if certificate is self-signed
-                issuer = dict(cert_bin.get('issuer', []))
-                subject = dict(cert_bin.get('subject', []))
+                issuer = parse_certificate_name(cert_bin.get('issuer', []))
+                subject = parse_certificate_name(cert_bin.get('subject', []))
                 logger.debug(f"issuer: {issuer}")
                 logger.debug(f"subject: {subject}")
 
@@ -279,3 +279,33 @@ def _format_cert_name(name_tuple):
             parts.append(component)
     
     return ', '.join(parts) if parts else None
+
+def parse_certificate_name(name_tuple):
+    """
+    Robust parser that handles various nesting levels in certificate names.
+    """
+    if not name_tuple:
+        return {}, "Unknown"
+    
+    result_dict = {}
+    
+    def extract_recursive(item):
+        """Recursively extract key-value pairs"""
+        if isinstance(item, tuple):
+            if len(item) == 2 and isinstance(item[0], str) and isinstance(item[1], str):
+                # Direct key-value pair
+                result_dict[item[0]] = item[1]
+            else:
+                # Recursively process tuple elements
+                for sub_item in item:
+                    extract_recursive(sub_item)
+        elif isinstance(item, list):
+            for sub_item in item:
+                extract_recursive(sub_item)
+    
+    extract_recursive(name_tuple)
+    
+    # Format as string
+    formatted = ', '.join([f"{k}={v}" for k, v in result_dict.items()])
+    
+    return result_dict, formatted
