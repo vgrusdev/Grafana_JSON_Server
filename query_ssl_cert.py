@@ -159,6 +159,9 @@ def get_fresh_data (
             issuer_str = _certificate_name_to_string(cert.issuer)
             common_name = _get_common_name(cert.subject)
 
+            name = x509.Name(cert.subject)
+            logger.debug(f"subject: {name.rfc4514_string()}")
+
             subject_dict = {'subject_' + attribute.name : attribute.value for attribute in cert.subject}
             issuer_dict  = {'issuer_' + attribute.oid._name : attribute.value for attribute in cert.issuer}
 
