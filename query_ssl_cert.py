@@ -70,9 +70,9 @@ class QuerySSLCert:
         results_new = self.redis_cache.get(cache_key,
             lambda: get_fresh_data(hostname, port=port, SNI=SNI), ttl = ttl)
 
-        if not results_new['success']:
-            logger.debug(f"❌ Error: {results_new['error']}")
-            return {}
+        #if not results_new['success']:
+        #    logger.debug(f"❌ Error: {results_new['error']}")
+        #    return {}
 
         results_new['name'] = conn_name
         #logger.debug(f"{conn}: success, duration {results_new['elapsed_ms']}ms")
