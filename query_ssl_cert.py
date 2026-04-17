@@ -8,7 +8,7 @@ import time
 from typing import Optional, Dict, List, Tuple
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from cryptography.x509.oid import ExtensionOID
+from cryptography.x509.oid import ExtensionOID, NameOID
 #from cryptography.hazmat.primitives import hashes
 #import base64
 
@@ -35,11 +35,15 @@ class QuerySSLCert:
 
     def get_ssl_certificate(self, conn):
         ''' conn is server connection params string:
-            NAME:hostname:port
+            NAME:hostname[:port[:SNI]]
+            if SNI == 'hostname':
+                SNI = hostname
+            elif SNI == 'None':
+                SNI = None
         '''
         logger.debug(f"execute_query_json - Conn: {conn}")
 
-        conn_split = conn.split(sep=":", maxsplit=3)
+        conn_split = conn.split(sep=":", maxsplit=4)
         l = len(conn_split)
         if l < 2 :
             logger.warning(f"empty connection string")
@@ -47,17 +51,24 @@ class QuerySSLCert:
 
         conn_name = conn_split[0]
         hostname = conn_split[1]
-        port=443
+        port = 443
+        SNI = None
         if l > 2:
             try:
                 port = int(conn_split[2])
             except ValueError as e:
                 logger.error(f"port number {e}")
                 return {}
+        if l > 3:
+            SNI = conn_split[3]
+            if SNI == 'hostname':
+                SNI = hostname
+            elif SNI == 'None':
+                SNI = None
 
         cache_key = '_'.join([self.redis_prefix_key, conn])
         results_new = self.redis_cache.get(cache_key,
-            lambda: get_fresh_data(hostname, port=port), ttl = 30)
+            lambda: get_fresh_data(hostname, port=port, SNI=SNI), ttl = 30)
 
         if not results_new['success']:
             logger.debug(f"❌ Error: {results_new['error']}")
@@ -72,6 +83,7 @@ class QuerySSLCert:
 def get_fresh_data (
     hostname: str,
     port: int = 443,
+    SNI: str = None,
     timeout: int = 10
 ) -> Dict:
     """
@@ -101,13 +113,14 @@ def get_fresh_data (
         'days_left': 0.0,
         'ms_left': 0,
         'is_expired': False,
-        'certificate_type': "",
+        'certificate_type': None,
         'is_self_signed': False,
-        'issuer': "",
-        'subject': "",
-        'signature_algorithm': "",
-        'version': "",
-        'error': "",
+        'issuer': None,
+        'subject': None,
+        'signature_algorithm': None,
+        'serial_number': None,
+        'version': None,
+        'error': None,
         'elapsed_ms': 0
     }
 
@@ -137,9 +150,10 @@ def get_fresh_data (
         
         # Wrap socket with SSL/TLS
 
-        with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+        with context.wrap_socket(sock, server_hostname=SNI) as ssock:
             # Get certificate in DER format (binary)
             cert_bin = ssock.getpeercert(binary_form=True)
+
             if not cert_bin:
                 result['error'] = f"No certificate received from server"
                 logger.error(result['error'])
@@ -157,7 +171,7 @@ def get_fresh_data (
             ms_left = (expiry_date - now).total_seconds() * 1000
             
             # Extract certificate info
-            subject_str = x509.Name(cert.subject).rfc4514_string()
+            subject_str = x509.Name(cert.subject).rfc4514_string({NameOID.EMAIL_ADDRESS: "E"})
             issuer_str = x509.Name(cert.issuer).rfc4514_string()
 
             # Analyze certificate type
@@ -167,8 +181,8 @@ def get_fresh_data (
                 'success': True,
                 #'issued_date': not_before.isoformat(),
                 #'expiry_date': expiry_date.isoformat(),
-                'issued_date': not_before.timestamp() * 1000,
-                'expiry_date': expiry_date.timestamp() * 1000,
+                'issued_date': int(not_before.timestamp() * 1000),
+                'expiry_date': int(expiry_date.timestamp() * 1000),
                 'days_left': round(days_left, 2),
                 'ms_left': round(ms_left, 0),
                 'is_expired': days_left < 0,
@@ -177,9 +191,55 @@ def get_fresh_data (
                 'subject': subject_str,
                 'issuer': issuer_str,
                 'signature_algorithm': cert.signature_algorithm_oid._name,
+                'serial_number': hex(cert.serial_number),
                 'version': cert.version.value
             })
             logger.debug(f"{hostname}:{port} type: {type_analysis['certificate_type']}, expire: {expiry_date.isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
+
+    except ssl.SSLError as e:
+        # Some servers close connection immediately - this is OK
+        if 'SSL alert' in str(e) or 'unrecognized name' in str(e).lower():
+            # Try to get certificate anyway (might still have it)
+            if sock and hasattr(sock, '_sslobj'):
+                try:
+                    der_cert = sock._sslobj.getpeercert(binary_form=True)
+                    if der_cert:
+                        # Parse certificate as above
+                        cert = x509.load_der_x509_certificate(der_cert, default_backend())
+
+                        # Extract certificate information
+                        expiry_date = cert.not_valid_after_utc
+                        not_before = cert.not_valid_before_utc
+                        now = datetime.now(timezone.utc)
+                        days_left = (expiry_date - now).total_seconds() / 86400
+                        ms_left = (expiry_date - now).total_seconds() * 1000
+
+                        # Extract certificate info
+                        subject_str = x509.Name(cert.subject).rfc4514_string({NameOID.EMAIL_ADDRESS: "E"})
+                        issuer_str = x509.Name(cert.issuer).rfc4514_string()
+
+                        # Analyze certificate type
+                        type_analysis = analyze_certificate_safe(cert_bin)
+
+                        result.update({
+                            'success': True,
+                            'issued_date': int(not_before.timestamp() * 1000),
+                            'expiry_date': int(expiry_date.timestamp() * 1000),
+                            'days_left': round(days_left, 2),
+                            'ms_left': round(ms_left, 0),
+                            'is_expired': days_left < 0,
+                            'certificate_type': type_analysis['certificate_type'],
+                            'is_self_signed': type_analysis['is_self_signed'],
+                            'subject': subject_str,
+                            'issuer': issuer_str,
+                            'signature_algorithm': cert.signature_algorithm_oid._name,
+                            'serial_number': hex(cert.serial_number),
+                            'version': cert.version.value,
+                            'note': 'Certificate retrieved despite SSL error'
+                        })
+                except:
+                    pass
+        result['error'] = str(e)
 
     except socket.timeout:
         result['error'] = f"Connection timeout after {timeout}s"
