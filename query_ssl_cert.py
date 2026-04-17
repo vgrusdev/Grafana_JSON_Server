@@ -109,19 +109,19 @@ def get_fresh_data (
         'success': False,
         'hostname': hostname,
         'port': port,
-        'issued_date': None,
-        'expiry_date': None,
-        'days_left': None,
-        'ms_left': None,
+        'issued_date': -1,
+        'expiry_date': -1,
+        'days_left': -1,
+        'ms_left': -1,
         'is_expired': False,
-        'certificate_type': None,
-        'is_self_signed': False,
-        'issuer': None,
-        'subject': None,
-        'signature_algorithm': None,
-        'serial_number': None,
-        'version': None,
-        'error': None,
+        'certificate_type': "",
+        'is_self_signed': "",
+        'issuer': "",
+        'subject': "",
+        'signature_algorithm': "",
+        'serial_number': "",
+        'version': "",
+        'error': "",
         'elapsed_ms': 0
     }
 
@@ -162,8 +162,7 @@ def get_fresh_data (
                 return result
 
             result.update(_process_cert_bin(cert_bin))
-            #logger.debug(f"{hostname}:{port} type: {result['certificate_type']}, expire: {datetime.fromtimestamp(result['expiry_date']/1000).isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
-            logger.debug(f"{hostname}:{port} type: {result['certificate_type']}, expire: {result['expiry_date']}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
+            logger.debug(f"{hostname}:{port} type: {result['certificate_type']}, expire: {datetime.fromtimestamp(result['expiry_date']/1000).isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
 
     except ssl.SSLError as e:
         # Some servers close connection immediately - this is OK
@@ -175,9 +174,7 @@ def get_fresh_data (
                     der_cert = sock._sslobj.getpeercert(binary_form=True)
                     if der_cert:
                         result.update(_process_cert_bin(der_cert))
-                        #logger.debug(f"{hostname}:{port} type: {result['certificate_type']}, expire: {datetime.fromtimestamp(result['expiry_date']/1000).isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
-                        logger.debug(f"{hostname}:{port} type: {result['certificate_type']}, expire: {result['expiry_date']}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
-
+                        logger.debug(f"{hostname}:{port} type: {result['certificate_type']}, expire: {datetime.fromtimestamp(result['expiry_date']/1000).isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
                 except:
                     pass
         result['error'] = str(e)
@@ -223,10 +220,10 @@ def _process_cert_bin(cert_bin: bytes) -> Dict[str, any]:
     return {
         'success': True,
         'timestamp': int(datetime.now(timezone.utc).timestamp() * 1000),
-        'issued_date': not_before.isoformat(),
-        'expiry_date': expiry_date.isoformat(),
-        #'issued_date': int(not_before.timestamp() * 1000),
-        #'expiry_date': int(expiry_date.timestamp() * 1000),
+        #'issued_date': not_before.isoformat(),
+        #'expiry_date': expiry_date.isoformat(),
+        'issued_date': int(not_before.timestamp() * 1000),
+        'expiry_date': int(expiry_date.timestamp() * 1000),
         'days_left': round(days_left, 2),
         'ms_left': round(ms_left, 0),
         'is_expired': days_left < 0,
