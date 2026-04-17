@@ -333,7 +333,7 @@ def query_ssl():
 
         connections = parse_prometheus_param(data.get('connections', [])) # List of connections names, Normalize to list
         if (not connections):
-            logger.error(f"connections option must be provided")
+            logger.error(f"query_ssl - connections option must be provided")
             return jsonify({"connections must be provided"}), 500
 
         ttl = 30
@@ -342,15 +342,15 @@ def query_ssl():
             if ttl_list:
                 ttl = int(ttl_list[0])
         except Exception as e:
-            logger.warning(f"Can not convert ttl parameter to int: {ttl_list[0]}")
+            logger.warning(f"query_ssl - Can not convert ttl parameter to int: {ttl_list[0]}")
             ttl = 30
         if ( ttl < 0 or ttl > 10000000):
-            logger.warning(f"ttl is out of range, use default value {ttl} sec")
+            logger.warning(f"query_ssl - ttl is out of range, use default value {ttl} sec")
         else:
-            logger.info(f"Use ttl: {ttl} sec")
+            logger.info(f"query_ssl - ttl: {ttl} sec")
 
     except Exception as e:
-        logger.error(f"JSON processing error: {str(e)}")
+        logger.error(f"query_ssl - JSON processing error: {str(e)}")
         return jsonify({"Input JSON processing error": str(e)}), 500
 
     all_results = []
@@ -371,7 +371,7 @@ def query_ssl():
                 if result:
                     all_results.append(result)
             except Exception as e:
-                logger.error(f"query_ssl exec error for conn:{conn}. {str(e)}")
+                logger.error(f"query_ssl - exec error for conn:{conn}. {str(e)}")
 
     return jsonify(all_results)
 
