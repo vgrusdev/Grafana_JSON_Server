@@ -219,7 +219,7 @@ def _process_cert_bin(cert_bin: bytes) -> Dict[str, any]:
 
     return {
         'success': True,
-        'timestamp': int(datetime.now(timezone.utc).timestamp() * 1000)
+        'timestamp': int(datetime.now(timezone.utc).timestamp() * 1000),
         #'issued_date': not_before.isoformat(),
         #'expiry_date': expiry_date.isoformat(),
         'issued_date': int(not_before.timestamp() * 1000),
