@@ -33,7 +33,7 @@ class QuerySSLCert:
         #self._access_count      = {}  # Track how often items are accessed
         #self.max_cache_size     = int(os.getenv('DB_CACHE_LENGTH', '30'), base=10)
 
-    def get_ssl_certificate(self, conn):
+    def get_ssl_certificate(self, conn, ttl = 30):
         ''' conn is server connection params string:
             NAME:hostname[:port[:SNI]]
             if SNI == 'hostname':
@@ -41,7 +41,7 @@ class QuerySSLCert:
             elif SNI == 'None':
                 SNI = None
         '''
-        logger.debug(f"execute_query_json - Conn: {conn}")
+        logger.debug(f"execute_query_json - Conn: {conn}, ttl: {ttl}")
 
         conn_split = conn.split(sep=":", maxsplit=4)
         l = len(conn_split)
@@ -68,7 +68,7 @@ class QuerySSLCert:
 
         cache_key = '_'.join([self.redis_prefix_key, conn])
         results_new = self.redis_cache.get(cache_key,
-            lambda: get_fresh_data(hostname, port=port, SNI=SNI), ttl = 30)
+            lambda: get_fresh_data(hostname, port=port, SNI=SNI), ttl = ttl)
 
         if not results_new['success']:
             logger.debug(f"❌ Error: {results_new['error']}")
@@ -105,6 +105,7 @@ def get_fresh_data (
     """
     start_time = time.time()
     result = {
+        'timestamp': int(datetime.now(timezone.utc).timestamp() * 1000),
         'success': False,
         'hostname': hostname,
         'port': port,
@@ -160,83 +161,20 @@ def get_fresh_data (
                 result['elapsed_ms'] = (time.time() - start_time) * 1000
                 return result
 
-            # Parse DER certificate using cryptography library
-            cert = x509.load_der_x509_certificate(cert_bin, default_backend())
-            
-            # Extract certificate information
-            expiry_date = cert.not_valid_after_utc
-            not_before = cert.not_valid_before_utc
-            now = datetime.now(timezone.utc)
-            days_left = (expiry_date - now).total_seconds() / 86400
-            ms_left = (expiry_date - now).total_seconds() * 1000
-            
-            # Extract certificate info
-            subject_str = x509.Name(cert.subject).rfc4514_string({NameOID.EMAIL_ADDRESS: "E"})
-            issuer_str = x509.Name(cert.issuer).rfc4514_string()
-
-            # Analyze certificate type
-            type_analysis = analyze_certificate_safe(cert_bin)
-
-            result.update({
-                'success': True,
-                #'issued_date': not_before.isoformat(),
-                #'expiry_date': expiry_date.isoformat(),
-                'issued_date': int(not_before.timestamp() * 1000),
-                'expiry_date': int(expiry_date.timestamp() * 1000),
-                'days_left': round(days_left, 2),
-                'ms_left': round(ms_left, 0),
-                'is_expired': days_left < 0,
-                'certificate_type': type_analysis['certificate_type'],
-                'is_self_signed': type_analysis['is_self_signed'],
-                'subject': subject_str,
-                'issuer': issuer_str,
-                'signature_algorithm': cert.signature_algorithm_oid._name,
-                'serial_number': hex(cert.serial_number),
-                'version': cert.version.value
-            })
+            result.update(_process_cert_bin(cert_bin))
             logger.debug(f"{hostname}:{port} type: {type_analysis['certificate_type']}, expire: {expiry_date.isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
 
     except ssl.SSLError as e:
         # Some servers close connection immediately - this is OK
         if 'SSL alert' in str(e) or 'unrecognized name' in str(e).lower():
             # Try to get certificate anyway (might still have it)
+            logger.debug(f"server closed connection trying to process a minimum info...")
             if sock and hasattr(sock, '_sslobj'):
                 try:
                     der_cert = sock._sslobj.getpeercert(binary_form=True)
                     if der_cert:
-                        # Parse certificate as above
-                        cert = x509.load_der_x509_certificate(der_cert, default_backend())
-
-                        # Extract certificate information
-                        expiry_date = cert.not_valid_after_utc
-                        not_before = cert.not_valid_before_utc
-                        now = datetime.now(timezone.utc)
-                        days_left = (expiry_date - now).total_seconds() / 86400
-                        ms_left = (expiry_date - now).total_seconds() * 1000
-
-                        # Extract certificate info
-                        subject_str = x509.Name(cert.subject).rfc4514_string({NameOID.EMAIL_ADDRESS: "E"})
-                        issuer_str = x509.Name(cert.issuer).rfc4514_string()
-
-                        # Analyze certificate type
-                        type_analysis = analyze_certificate_safe(cert_bin)
-
-                        result.update({
-                            'success': True,
-                            'issued_date': int(not_before.timestamp() * 1000),
-                            'expiry_date': int(expiry_date.timestamp() * 1000),
-                            'days_left': round(days_left, 2),
-                            'ms_left': round(ms_left, 0),
-                            'is_expired': days_left < 0,
-                            'certificate_type': type_analysis['certificate_type'],
-                            'is_self_signed': type_analysis['is_self_signed'],
-                            'subject': subject_str,
-                            'issuer': issuer_str,
-                            'signature_algorithm': cert.signature_algorithm_oid._name,
-                            'serial_number': hex(cert.serial_number),
-                            'version': cert.version.value,
-                            'note': 'Certificate retrieved despite SSL error'
-                        })
+                        result.update(_process_cert_bin(der_cert))
+                        logger.debug(f"{hostname}:{port} type: {type_analysis['certificate_type']}, expire: {expiry_date.isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
                 except:
                     pass
         result['error'] = str(e)
@@ -256,6 +194,48 @@ def get_fresh_data (
         result['elapsed_ms'] = round((time.time() - start_time) * 1000, 2)
     
     return result
+
+def _process_cert_bin(cert_bin: bytes) -> Dict[str, any]:
+
+    if not cert_bin:
+        return {}
+
+    # Parse DER certificate using cryptography library
+    cert = x509.load_der_x509_certificate(cert_bin, default_backend())
+            
+    # Extract certificate information
+    expiry_date = cert.not_valid_after_utc
+    not_before = cert.not_valid_before_utc
+    now = datetime.now(timezone.utc)
+    days_left = (expiry_date - now).total_seconds() / 86400
+    ms_left = (expiry_date - now).total_seconds() * 1000
+            
+    # Extract certificate info
+    subject_str = x509.Name(cert.subject).rfc4514_string({NameOID.EMAIL_ADDRESS: "E"})
+    issuer_str = x509.Name(cert.issuer).rfc4514_string()
+
+    # Analyze certificate type
+    type_analysis = analyze_certificate_safe(cert_bin)
+
+    return {
+        'success': True,
+        'timestamp': int(datetime.now(timezone.utc).timestamp() * 1000)
+        #'issued_date': not_before.isoformat(),
+        #'expiry_date': expiry_date.isoformat(),
+        'issued_date': int(not_before.timestamp() * 1000),
+        'expiry_date': int(expiry_date.timestamp() * 1000),
+        'days_left': round(days_left, 2),
+        'ms_left': round(ms_left, 0),
+        'is_expired': days_left < 0,
+        'certificate_type': type_analysis['certificate_type'],
+        'is_self_signed': type_analysis['is_self_signed'],
+        'subject': subject_str,
+        'issuer': issuer_str,
+        'signature_algorithm': cert.signature_algorithm_oid._name,
+        'serial_number': hex(cert.serial_number),
+        'version': cert.version.value
+    }
+
 
 def analyze_certificate_safe(der_cert: bytes) -> Dict[str, any]:
     """
