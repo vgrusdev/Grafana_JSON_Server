@@ -162,7 +162,7 @@ def get_fresh_data (
                 return result
 
             result.update(_process_cert_bin(cert_bin))
-            logger.debug(f"{hostname}:{port} type: {type_analysis['certificate_type']}, expire: {expiry_date.isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
+            logger.debug(f"{hostname}:{port} type: {result['certificate_type']}, expire: {datetime.fromtimestamp(result['expiry_date']/1000).isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
 
     except ssl.SSLError as e:
         # Some servers close connection immediately - this is OK
@@ -174,7 +174,7 @@ def get_fresh_data (
                     der_cert = sock._sslobj.getpeercert(binary_form=True)
                     if der_cert:
                         result.update(_process_cert_bin(der_cert))
-                        logger.debug(f"{hostname}:{port} type: {type_analysis['certificate_type']}, expire: {expiry_date.isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
+                        logger.debug(f"{hostname}:{port} type: {result['certificate_type']}, expire: {datetime.fromtimestamp(result['expiry_date']/1000).isoformat()}, elapsed: {round((time.time() - start_time) * 1000, 2)}")
                 except:
                     pass
         result['error'] = str(e)
