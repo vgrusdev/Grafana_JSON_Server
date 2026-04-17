@@ -156,8 +156,8 @@ def get_fresh_data (
             cert_bin = ssock.getpeercert(binary_form=True)
 
             if not cert_bin:
-                result['error'] = f"No certificate received from server"
-                logger.error(result['error'])
+                result['error'] = "No certificate received from server"
+                logger.error(f"❌ {hostname}:{port} {result['error']}")
                 result['elapsed_ms'] = (time.time() - start_time) * 1000
                 return result
 
@@ -168,7 +168,7 @@ def get_fresh_data (
         # Some servers close connection immediately - this is OK
         if 'SSL alert' in str(e) or 'unrecognized name' in str(e).lower():
             # Try to get certificate anyway (might still have it)
-            logger.debug(f"server closed connection trying to process a minimum info...")
+            logger.warning(f"{hostname}:{port} server closed connection trying to process a minimum info...")
             if sock and hasattr(sock, '_sslobj'):
                 try:
                     der_cert = sock._sslobj.getpeercert(binary_form=True)
@@ -181,13 +181,13 @@ def get_fresh_data (
 
     except socket.timeout:
         result['error'] = f"Connection timeout after {timeout}s"
-        logger.error(result['error'])
+        logger.error(f"❌ {hostname}:{port} {result['error']}")
     except socket.gaierror as e:
         result['error'] = f"DNS resolution failed: {str(e)}"
-        logger.error(result['error'])
+        logger.error(f"❌ {hostname}:{port} {result['error']}")
     except Exception as e:
         result['error'] = f"Error processing certificate: {str(e)}"
-        logger.error(result['error'])
+        logger.error(f"❌ {hostname}:{port} {result['error']}")
     finally:
         if sock:
             sock.close()
